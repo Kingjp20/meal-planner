@@ -1,0 +1,362 @@
+const { useState, useEffect } = React;
+
+const DAYS = [“Mon”, “Tue”, “Wed”, “Thu”, “Fri”, “Sat”, “Sun”];
+const DEPT = {
+produce: “🥬 Produce”,
+meat: “🥩 Meat & Seafood”,
+dairy: “🥛 Dairy & Alternatives”,
+frozen: “🧊 Frozen”,
+pantry: “🫙 Pantry & Spices”,
+bakery: “🍞 Bakery”,
+canned: “🥫 Canned & Dry Goods”,
+};
+
+const DEFAULT_RECIPES = [
+{
+id: 1, name: “Shrimp Tacos”, emoji: “🌮”, points: 2, serves: 4, tags: [“GF”, “Dairy-Free”],
+ingredients: [
+{ label: “Raw shrimp (peeled & deveined)”, search: “raw shrimp peeled deveined”, dept: “meat”, qty: “1 lb” },
+{ label: “Olive oil”, search: “olive oil”, dept: “pantry”, qty: “1 tsp” },
+{ label: “Chili powder”, search: “chili powder”, dept: “pantry”, qty: “1 tsp” },
+{ label: “Cumin”, search: “cumin”, dept: “pantry”, qty: “½ tsp” },
+{ label: “Garlic powder”, search: “garlic powder”, dept: “pantry”, qty: “½ tsp” },
+{ label: “Smoked paprika”, search: “smoked paprika”, dept: “pantry”, qty: “½ tsp” },
+{ label: “Lime”, search: “lime”, dept: “produce”, qty: “2” },
+{ label: “Shredded cabbage slaw mix”, search: “shredded cabbage slaw”, dept: “produce”, qty: “2 cups” },
+{ label: “Fresh cilantro”, search: “fresh cilantro”, dept: “produce”, qty: “1/4 cup” },
+{ label: “Apple cider vinegar”, search: “apple cider vinegar”, dept: “pantry”, qty: “1 tbsp” },
+{ label: “Dairy-free plain yogurt”, search: “dairy free yogurt”, dept: “dairy”, qty: “1/4 cup” },
+{ label: “Gluten-free corn tortillas”, search: “gluten free corn tortillas”, dept: “bakery”, qty: “8” },
+],
+},
+{
+id: 2, name: “Shrimp Fajita Bowl”, emoji: “🍤”, points: 4, serves: 4, tags: [“GF”, “Dairy-Free”],
+ingredients: [
+{ label: “Large shrimp (peeled & deveined)”, search: “large shrimp peeled deveined”, dept: “meat”, qty: “1 lb” },
+{ label: “Bell peppers”, search: “bell peppers”, dept: “produce”, qty: “3” },
+{ label: “Red onion”, search: “red onion”, dept: “produce”, qty: “1” },
+{ label: “Lime”, search: “lime”, dept: “produce”, qty: “1” },
+{ label: “Chili powder”, search: “chili powder”, dept: “pantry”, qty: “1.5 tsp” },
+{ label: “Cumin”, search: “cumin”, dept: “pantry”, qty: “1 tsp” },
+{ label: “Smoked paprika”, search: “smoked paprika”, dept: “pantry”, qty: “1/2 tsp” },
+{ label: “Garlic powder”, search: “garlic powder”, dept: “pantry”, qty: “1/2 tsp” },
+{ label: “Frozen cauliflower rice”, search: “frozen cauliflower rice”, dept: “frozen”, qty: “1 bag” },
+],
+},
+{
+id: 3, name: “Mexican Beef & Cauli Rice”, emoji: “🌶️”, points: 5, serves: 4, tags: [“GF”, “Dairy-Free”],
+ingredients: [
+{ label: “96% lean ground beef”, search: “96 lean ground beef”, dept: “meat”, qty: “1 lb” },
+{ label: “Frozen cauliflower rice”, search: “frozen cauliflower rice”, dept: “frozen”, qty: “1 bag” },
+{ label: “Black beans”, search: “black beans”, dept: “canned”, qty: “1/2 cup” },
+{ label: “Corn”, search: “corn”, dept: “canned”, qty: “1/2 cup” },
+{ label: “Salsa”, search: “salsa”, dept: “pantry”, qty: “1/2 cup” },
+{ label: “Gluten-free taco seasoning”, search: “gluten free taco seasoning”, dept: “pantry”, qty: “1 packet” },
+{ label: “Cooking spray”, search: “cooking spray”, dept: “pantry”, qty: “as needed” },
+],
+},
+{
+id: 4, name: “Honey Garlic Chicken”, emoji: “🍗”, points: 2, serves: 4, tags: [“GF”],
+ingredients: [
+{ label: “Boneless skinless chicken breasts”, search: “boneless skinless chicken breast”, dept: “meat”, qty: “1.5 lbs” },
+{ label: “Fresh green beans”, search: “fresh green beans”, dept: “produce”, qty: “3 cups” },
+{ label: “Red bell pepper”, search: “red bell pepper”, dept: “produce”, qty: “1” },
+{ label: “Olive oil”, search: “olive oil”, dept: “pantry”, qty: “2 tsp” },
+{ label: “Garlic”, search: “garlic”, dept: “produce”, qty: “3 cloves” },
+{ label: “Low-sodium soy sauce”, search: “low sodium soy sauce”, dept: “pantry”, qty: “1/4 cup” },
+{ label: “Honey”, search: “honey”, dept: “pantry”, qty: “1 tbsp” },
+{ label: “Rice vinegar”, search: “rice vinegar”, dept: “pantry”, qty: “1 tbsp” },
+],
+},
+];
+
+function loadState() {
+try { var s = localStorage.getItem(“ww_planner_v3”); return s ? JSON.parse(s) : null; } catch(e) { return null; }
+}
+function saveState(s) {
+try { localStorage.setItem(“ww_planner_v3”, JSON.stringify(s)); } catch(e) {}
+}
+function openFrys(search) {
+window.open(“https://www.frysfood.com/search?query=” + encodeURIComponent(search), “_blank”);
+}
+function deptGuess(label) {
+var l = label.toLowerCase();
+if (/chicken|beef|turkey|pork|shrimp|salmon|tuna|meat/.test(l)) return “meat”;
+if (/milk|yogurt|cheese|cream|butter|egg/.test(l)) return “dairy”;
+if (/frozen/.test(l)) return “frozen”;
+if (/lettuce|spinach|cabbage|onion|pepper|tomato|lime|lemon|garlic|carrot|cilantro|avocado|herb|apple|berry|banana|cucumber/.test(l)) return “produce”;
+if (/bread|tortilla|wrap|roll|bun/.test(l)) return “bakery”;
+if (/bean|corn|salsa|canned/.test(l)) return “canned”;
+return “pantry”;
+}
+function buildShoppingList(recipes, pantry) {
+var seen = new Set(); var result = [];
+recipes.forEach(function(r) {
+r.ingredients.forEach(function(ing) {
+if (!seen.has(ing.search) && !pantry[ing.search]) { seen.add(ing.search); result.push(Object.assign({}, ing)); }
+});
+});
+return result;
+}
+function groupByDept(items) {
+var g = {};
+items.forEach(function(i) { if (!g[i.dept]) g[i.dept] = []; g[i.dept].push(i); });
+return g;
+}
+
+var O = “#E8650A”, OL = “#FFF3EB”, OD = “#C4520A”, GR = “#6B7280”, BD = “#E5E7EB”, TX = “#1F2937”, WH = “#FFFFFF”, GN = “#16A34A”, RD = “#DC2626”;
+var TABS = [“plan”,“list”,“pantry”,“recipes”];
+var TLAB = {plan:“Meal Plan”,list:“Shopping”,pantry:“Pantry”,recipes:“Recipes”};
+var TICO = {plan:“📅”,list:“🛒”,pantry:“🏠”,recipes:“📖”};
+
+function App() {
+var saved = loadState();
+var _a = useState(“plan”), tab = _a[0], setTab = _a[1];
+var _b = useState(saved && saved.recipes || DEFAULT_RECIPES), recipes = _b[0], setRecipes = _b[1];
+var _c = useState(saved && saved.mealPlan || {}), mealPlan = _c[0], setMealPlan = _c[1];
+var _d = useState(saved && saved.servings || {}), servings = _d[0], setServings = _d[1];
+var _e = useState(saved && saved.pantry || {}), pantry = _e[0], setPantry = _e[1];
+var _f = useState(saved && saved.checked || {}), checked = _f[0], setChecked = _f[1];
+var _g = useState(false), showAdd = _g[0], setShowAdd = _g[1];
+var _h = useState(false), importMode = _h[0], setImportMode = _h[1];
+var _i = useState(””), searchQ = _i[0], setSearchQ = _i[1];
+var _j = useState(false), copied = _j[0], setCopied = _j[1];
+var _k = useState({name:””,emoji:“🍽️”,points:””,serves:“4”,text:””}), newR = _k[0], setNewR = _k[1];
+
+useEffect(function() { saveState({recipes:recipes,mealPlan:mealPlan,servings:servings,pantry:pantry,checked:checked}); }, [recipes,mealPlan,servings,pantry,checked]);
+
+var selIds = Array.from(new Set(Object.values(mealPlan).reduce(function(a,b){return a.concat(b)},[])));
+var selRecipes = recipes.filter(function(r){return selIds.includes(r.id);});
+var shopList = buildShoppingList(selRecipes, pantry);
+var grouped = groupByDept(shopList);
+var totalPts = selRecipes.reduce(function(a,r){return a+(r.points||0);},0);
+var checkedN = shopList.filter(function(i){return checked[i.search];}).length;
+var pct = shopList.length > 0 ? Math.round(checkedN/shopList.length*100) : 0;
+
+function togglePlan(day, rid) {
+setMealPlan(function(p){ var c=p[day]||[]; return Object.assign({},p,{[day]:c.includes(rid)?c.filter(function(x){return x!==rid;}):c.concat([rid])}); });
+}
+function adjServ(rid, d) {
+var r=recipes.find(function(x){return x.id===rid;}); var curr=servings[rid]||r.serves;
+setServings(function(p){return Object.assign({},p,{[rid]:Math.max(1,curr+d)});});
+}
+function shareList() {
+var text = “Shopping List\n\n” + Object.entries(DEPT).map(function(e){var items=grouped[e[0]];if(!items||!items.length)return null;return e[1]+”\n”+items.map(function(i){return “- “+i.label+(i.qty?” (”+i.qty+”)”:””);}).join(”\n”);}).filter(Boolean).join(”\n\n”);
+if(navigator.share) navigator.share({title:“Shopping List”,text:text});
+else navigator.clipboard.writeText(text).then(function(){setCopied(true);setTimeout(function(){setCopied(false);},2500);});
+}
+function shareRecipe(r) {
+var text = r.emoji+” “+r.name+”\n”+r.points+” WW pts | Serves “+r.serves+”\n\nIngredients:\n”+r.ingredients.map(function(i){return “- “+i.label+(i.qty?” (”+i.qty+”)”:””);}).join(”\n”);
+if(navigator.share) navigator.share({title:r.name,text:text});
+else navigator.clipboard.writeText(text).then(function(){setCopied(true);setTimeout(function(){setCopied(false);},2500);});
+}
+function addRecipe() {
+if(!newR.name) return;
+var lines = newR.text.split(”\n”).map(function(l){return l.trim();}).filter(Boolean);
+var ingLines = lines.filter(function(l){return /^[-•*]|^\d+[.)]/.test(l)||importMode;});
+if(ingLines.length===0) ingLines=lines;
+var ingredients = ingLines.map(function(l){var clean=l.replace(/^[-•*\d.)]+\s*/,””).trim();return {label:clean,search:clean.toLowerCase().replace(/[^a-z0-9 ]/g,””).trim(),dept:deptGuess(clean),qty:””};}).filter(function(i){return i.label.length>1;});
+var r = {id:Date.now(),name:newR.name,emoji:newR.emoji,points:parseInt(newR.points)||0,serves:parseInt(newR.serves)||4,tags:[“Custom”],ingredients:ingredients};
+setRecipes(function(p){return p.concat([r]);});
+setNewR({name:””,emoji:“🍽️”,points:””,serves:“4”,text:””});
+setShowAdd(false); setImportMode(false);
+}
+function deleteRecipe(id) {
+if(!window.confirm(“Delete this recipe?”)) return;
+setRecipes(function(p){return p.filter(function(r){return r.id!==id;});});
+setMealPlan(function(p){var n={};Object.entries(p).forEach(function(e){n[e[0]]=e[1].filter(function(x){return x!==id;});});return n;});
+}
+
+var filtered = recipes.filter(function(r){return r.name.toLowerCase().includes(searchQ.toLowerCase());});
+
+var inp = {width:“100%”,padding:“11px 13px”,border:“1px solid “+BD,borderRadius:10,fontSize:14,fontFamily:“inherit”,background:WH,marginBottom:10,outline:“none”};
+var lbl = {fontSize:11,color:GR,textTransform:“uppercase”,letterSpacing:“0.1em”,marginBottom:5,display:“block”};
+function Btn(props) { return React.createElement(“button”,{onClick:props.onClick,style:{width:props.full?“100%”:“auto”,padding:“13px 18px”,background:props.bg||O,color:props.co||”#fff”,border:props.outline?“1px solid “+BD:“none”,borderRadius:10,fontSize:14,fontFamily:“inherit”,fontWeight:“bold”,cursor:“pointer”,marginBottom:props.mb!==undefined?props.mb:10,flex:props.flex}},props.children); }
+
+return React.createElement(“div”,{style:{minHeight:“100vh”,background:”#F9FAFB”,paddingBottom:80}},
+
+```
+// Header
+React.createElement("div",{style:{background:O,padding:"20px 16px 16px",color:"#fff"}},
+  React.createElement("div",{style:{fontSize:11,letterSpacing:"0.15em",textTransform:"uppercase",opacity:0.85,marginBottom:4}},"Fry's Meal Planner"),
+  React.createElement("div",{style:{fontSize:24,fontWeight:800}},"🛒 Weekly Plan"),
+  selIds.length>0&&React.createElement("div",{style:{fontSize:13,opacity:0.9,marginTop:4}},selIds.length+" recipes · "+totalPts+" WW pts · "+shopList.length+" items")
+),
+
+// Tabs
+React.createElement("div",{style:{display:"flex",background:WH,borderBottom:"1px solid "+BD,position:"sticky",top:0,zIndex:10,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}},
+  TABS.map(function(t){ return React.createElement("button",{key:t,onClick:function(){setTab(t);},style:{flex:1,padding:"10px 4px",border:"none",background:"none",borderBottom:tab===t?"3px solid "+O:"3px solid transparent",color:tab===t?O:GR,fontSize:9,fontWeight:tab===t?"bold":"normal",cursor:"pointer"}},
+    React.createElement("div",{style:{fontSize:18,marginBottom:2}},TICO[t]),TLAB[t]); })
+),
+
+React.createElement("div",{style:{padding:"16px 16px 24px"}},
+
+  // MEAL PLAN
+  tab==="plan"&&React.createElement("div",null,
+    selIds.length>0&&React.createElement("div",{style:{background:WH,borderRadius:14,border:"1px solid "+BD,padding:"14px",marginBottom:16,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}},
+      React.createElement("div",{style:{fontSize:11,color:GR,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}},"Weekly WW Points"),
+      React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        selRecipes.map(function(r){return React.createElement("div",{key:r.id,style:{background:OL,borderRadius:8,padding:"5px 10px",fontSize:12}},React.createElement("b",null,r.emoji+" "+r.name)," ",React.createElement("span",{style:{color:O}},r.points+" pts"));}),
+        React.createElement("div",{style:{background:O,borderRadius:8,padding:"5px 10px",fontSize:12,color:"#fff",fontWeight:"bold"}},"Total: "+totalPts+" pts")
+      )
+    ),
+
+    DAYS.map(function(day){ return React.createElement("div",{key:day,style:{marginBottom:12}},
+      React.createElement("div",{style:{fontSize:12,fontWeight:"bold",color:GR,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}},day),
+      React.createElement("div",{style:{background:WH,borderRadius:12,border:"1px solid "+BD,overflow:"hidden"}},
+        (mealPlan[day]||[]).map(function(rid){
+          var r=recipes.find(function(x){return x.id===rid;}); if(!r) return null;
+          return React.createElement("div",{key:rid,style:{display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:"1px solid "+BD,background:OL}},
+            React.createElement("span",{style:{fontSize:22,marginRight:10}},r.emoji),
+            React.createElement("div",{style:{flex:1}},
+              React.createElement("div",{style:{fontWeight:600,fontSize:14}},r.name),
+              React.createElement("div",{style:{fontSize:11,color:GR}},r.points+" WW pts")
+            ),
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6,marginRight:8}},
+              React.createElement("button",{onClick:function(){adjServ(r.id,-1);},style:{width:26,height:26,borderRadius:"50%",border:"1px solid "+BD,background:WH,cursor:"pointer",fontSize:16}},"−"),
+              React.createElement("span",{style:{fontSize:13,fontWeight:"bold",minWidth:22,textAlign:"center"}},servings[r.id]||r.serves),
+              React.createElement("button",{onClick:function(){adjServ(r.id,1);},style:{width:26,height:26,borderRadius:"50%",border:"1px solid "+BD,background:WH,cursor:"pointer",fontSize:16}},"+")
+            ),
+            React.createElement("button",{onClick:function(){togglePlan(day,rid);},style:{background:"none",border:"none",color:RD,fontSize:20,cursor:"pointer"}},"×")
+          );
+        }),
+        React.createElement("div",{style:{padding:"8px 12px"}},
+          React.createElement("select",{value:"",onChange:function(e){if(e.target.value)togglePlan(day,parseInt(e.target.value));},style:{width:"100%",padding:"9px",border:"1px solid "+BD,borderRadius:8,background:WH,color:GR,fontSize:13,fontFamily:"inherit"}},
+            React.createElement("option",{value:""},"+ Add a recipe..."),
+            recipes.map(function(r){return React.createElement("option",{key:r.id,value:r.id},r.emoji+" "+r.name+" ("+r.points+" pts)");})
+          )
+        )
+      )
+    );}),
+    selIds.length>0&&React.createElement("button",{onClick:function(){setTab("list");},style:{width:"100%",padding:"14px",background:O,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer",marginTop:4}},"View Shopping List ("+shopList.length+" items) →")
+  ),
+
+  // SHOPPING LIST
+  tab==="list"&&React.createElement("div",null,
+    shopList.length===0
+      ?React.createElement("div",{style:{textAlign:"center",paddingTop:48,color:GR}},
+        React.createElement("div",{style:{fontSize:48}},"🧺"),
+        React.createElement("div",{style:{marginTop:10,fontSize:16,fontWeight:600}},"No items yet"),
+        React.createElement("div",{style:{fontSize:14,color:GR,marginTop:4,marginBottom:20}},"Add recipes to your meal plan first"),
+        React.createElement("button",{onClick:function(){setTab("plan");},style:{padding:"12px 24px",background:O,color:"#fff",border:"none",borderRadius:10,fontSize:14,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer"}},"Go to Meal Plan")
+      )
+      :React.createElement("div",null,
+        // Progress
+        React.createElement("div",{style:{background:WH,borderRadius:14,border:"1px solid "+BD,padding:"14px",marginBottom:14,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}},
+          React.createElement("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:8}},
+            React.createElement("span",{style:{fontWeight:600}},checkedN+" of "+shopList.length+" in cart"),
+            React.createElement("span",{style:{color:O,fontWeight:"bold"}},pct+"%")
+          ),
+          React.createElement("div",{style:{height:8,background:"#F3F4F6",borderRadius:10,overflow:"hidden"}},
+            React.createElement("div",{style:{height:"100%",width:pct+"%",background:O,borderRadius:10,transition:"width 0.3s"}})
+          )
+        ),
+        React.createElement("div",{style:{display:"flex",gap:8,marginBottom:14}},
+          React.createElement("button",{onClick:shareList,style:{flex:1,padding:"13px",background:O,color:"#fff",border:"none",borderRadius:10,fontSize:14,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer"}},copied?"✅ Copied!":"📤 Share List"),
+          React.createElement("button",{onClick:function(){setChecked({});},style:{flex:1,padding:"13px",background:WH,color:GR,border:"1px solid "+BD,borderRadius:10,fontSize:14,fontFamily:"inherit",cursor:"pointer"}},"↺ Reset")
+        ),
+        React.createElement("div",{style:{background:OL,border:"1px solid #FDBA74",borderRadius:10,padding:"10px 13px",marginBottom:14,fontSize:12,color:OD}},
+          "📱 Tap item to search Fry's · tap circle to check off"
+        ),
+        Object.entries(DEPT).map(function(e){
+          var dk=e[0],dn=e[1]; var items=grouped[dk]; if(!items||!items.length) return null;
+          var doneN=items.filter(function(i){return checked[i.search];}).length;
+          return React.createElement("div",{key:dk,style:{marginBottom:16}},
+            React.createElement("div",{style:{fontSize:13,fontWeight:"bold",marginBottom:8,display:"flex",justifyContent:"space-between"}},
+              React.createElement("span",null,dn),
+              React.createElement("span",{style:{fontSize:11,color:GR}},doneN+"/"+items.length)
+            ),
+            React.createElement("div",{style:{background:WH,borderRadius:12,border:"1px solid "+BD,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}},
+              items.map(function(ing,i){
+                var done=checked[ing.search];
+                return React.createElement("div",{key:ing.search,style:{display:"flex",alignItems:"center",gap:10,padding:"13px 13px",borderBottom:i<items.length-1?"1px solid "+BD:"none",opacity:done?0.4:1,background:done?"#F9FAFB":WH}},
+                  React.createElement("div",{onClick:function(){setChecked(function(p){return Object.assign({},p,{[ing.search]:!p[ing.search]});});},style:{width:26,height:26,borderRadius:"50%",background:done?O:WH,border:"2px solid "+(done?O:BD),flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:"#fff"}},done?"✓":""),
+                  React.createElement("div",{onClick:function(){openFrys(ing.search);},style:{flex:1,cursor:"pointer"}},
+                    React.createElement("div",{style:{fontSize:14,fontWeight:500,textDecoration:done?"line-through":"none"}},ing.label),
+                    ing.qty&&React.createElement("div",{style:{fontSize:12,color:GR,marginTop:1}},ing.qty)
+                  ),
+                  !done&&React.createElement("div",{onClick:function(){openFrys(ing.search);},style:{background:O,borderRadius:8,padding:"6px 10px",cursor:"pointer",flexShrink:0}},
+                    React.createElement("span",{style:{color:"#fff",fontWeight:"bold",fontSize:13}},"f›")
+                  )
+                );
+              })
+            )
+          );
+        }),
+        pct===100&&React.createElement("div",{style:{background:"#F0FDF4",border:"1.5px solid #86EFAC",borderRadius:14,padding:"20px",textAlign:"center",marginBottom:14}},
+          React.createElement("div",{style:{fontSize:36}},"🎉"),
+          React.createElement("div",{style:{fontWeight:"bold",fontSize:16,marginTop:8,color:GN}},"All done!"),
+          React.createElement("div",{style:{fontSize:13,color:GR,marginTop:4}},"Open the Fry's app to checkout")
+        )
+      )
+  ),
+
+  // PANTRY
+  tab==="pantry"&&React.createElement("div",null,
+    React.createElement("div",{style:{fontSize:14,color:GR,marginBottom:16,lineHeight:1.6}},"Check items you already have. They'll be skipped from your shopping list."),
+    React.createElement("div",{style:{background:WH,borderRadius:12,border:"1px solid "+BD,overflow:"hidden"}},
+      Array.from(new Set(recipes.flatMap(function(r){return r.ingredients;}).map(function(i){return i.search;}))).map(function(search,idx,arr){
+        var ing=recipes.flatMap(function(r){return r.ingredients;}).find(function(i){return i.search===search;}); if(!ing) return null;
+        return React.createElement("div",{key:search,style:{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",borderBottom:idx<arr.length-1?"1px solid "+BD:"none"}},
+          React.createElement("div",{onClick:function(){setPantry(function(p){return Object.assign({},p,{[search]:!p[search]});});},style:{width:26,height:26,borderRadius:6,background:pantry[search]?O:WH,border:"2px solid "+(pantry[search]?O:BD),flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:"#fff"}},pantry[search]?"✓":""),
+          React.createElement("div",{style:{flex:1,fontSize:14,fontWeight:500}},ing.label),
+          pantry[search]&&React.createElement("span",{style:{fontSize:10,color:O,fontWeight:"bold"}},"HAVE IT")
+        );
+      })
+    )
+  ),
+
+  // RECIPES
+  tab==="recipes"&&React.createElement("div",null,
+    React.createElement("input",{value:searchQ,onChange:function(e){setSearchQ(e.target.value);},placeholder:"🔍 Search recipes...",style:inp}),
+    React.createElement("div",{style:{display:"flex",gap:8,marginBottom:12}},
+      React.createElement("button",{onClick:function(){setShowAdd(!showAdd);setImportMode(false);},style:{flex:1,padding:"12px",background:showAdd&&!importMode?GR:O,color:"#fff",border:"none",borderRadius:10,fontSize:13,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer"}},showAdd&&!importMode?"✕ Cancel":"+ New Recipe"),
+      React.createElement("button",{onClick:function(){setShowAdd(!showAdd);setImportMode(true);},style:{flex:1,padding:"12px",background:showAdd&&importMode?GR:OD,color:"#fff",border:"none",borderRadius:10,fontSize:13,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer"}},showAdd&&importMode?"✕ Cancel":"📋 Import from ChatGPT")
+    ),
+
+    showAdd&&React.createElement("div",{style:{background:WH,borderRadius:14,border:"1px solid "+BD,padding:"16px",marginBottom:16}},
+      React.createElement("div",{style:{fontSize:15,fontWeight:"bold",marginBottom:10}},importMode?"📋 Paste ChatGPT Recipe":"✏️ New Recipe"),
+      importMode&&React.createElement("div",{style:{background:OL,borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:OD,lineHeight:1.6}},"Ask ChatGPT for a WW recipe, paste the full text below — the app will extract the ingredients automatically!"),
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:10}},
+        React.createElement("input",{value:newR.emoji,onChange:function(e){setNewR(function(p){return Object.assign({},p,{emoji:e.target.value});});},style:{...inp,width:60,textAlign:"center",fontSize:22,marginBottom:0}}),
+        React.createElement("input",{value:newR.name,onChange:function(e){setNewR(function(p){return Object.assign({},p,{name:e.target.value});});},placeholder:"Recipe name *",style:{...inp,flex:1,marginBottom:0}})
+      ),
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:10}},
+        React.createElement("input",{type:"number",value:newR.points,onChange:function(e){setNewR(function(p){return Object.assign({},p,{points:e.target.value});});},placeholder:"WW pts",style:{...inp,flex:1,marginBottom:0}}),
+        React.createElement("input",{type:"number",value:newR.serves,onChange:function(e){setNewR(function(p){return Object.assign({},p,{serves:e.target.value});});},placeholder:"Serves",style:{...inp,flex:1,marginBottom:0}})
+      ),
+      React.createElement("textarea",{value:newR.text,onChange:function(e){setNewR(function(p){return Object.assign({},p,{text:e.target.value});});},placeholder:importMode?"Paste the full ChatGPT recipe response here...":"Ingredients, one per line:\n- Chicken breast 1.5 lbs\n- Olive oil 1 tsp",rows:8,style:{...inp,resize:"vertical",fontFamily:"inherit"}}),
+      React.createElement("button",{onClick:addRecipe,style:{width:"100%",padding:"14px",background:O,color:"#fff",border:"none",borderRadius:10,fontSize:15,fontFamily:"inherit",fontWeight:"bold",cursor:"pointer"}},"Save Recipe")
+    ),
+
+    filtered.map(function(r){ return React.createElement("div",{key:r.id,style:{background:WH,borderRadius:14,border:"1px solid "+BD,padding:"14px",marginBottom:10,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}},
+      React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:12}},
+        React.createElement("div",{style:{fontSize:32}},r.emoji),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontWeight:700,fontSize:15}},r.name),
+          React.createElement("div",{style:{fontSize:12,color:GR,marginTop:2}},r.points+" WW pts · Serves "+r.serves+" · "+r.ingredients.length+" ingredients"),
+          React.createElement("div",{style:{display:"flex",gap:5,marginTop:6,flexWrap:"wrap"}},(r.tags||[]).map(function(t){return React.createElement("span",{key:t,style:{fontSize:10,padding:"2px 8px",borderRadius:20,background:OL,color:OD,fontWeight:600}},t);})),
+          React.createElement("div",{style:{marginTop:10}},
+            React.createElement("div",{style:{fontSize:11,color:GR,marginBottom:5}},"Add to day:"),
+            React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
+              DAYS.map(function(day){
+                var on=(mealPlan[day]||[]).includes(r.id);
+                return React.createElement("button",{key:day,onClick:function(){togglePlan(day,r.id);},style:{padding:"4px 10px",borderRadius:20,border:"1.5px solid "+(on?O:BD),background:on?O:WH,color:on?"#fff":GR,fontSize:11,fontWeight:on?"bold":"normal",cursor:"pointer"}},day);
+              })
+            )
+          ),
+          React.createElement("div",{style:{display:"flex",gap:8,marginTop:10}},
+            React.createElement("button",{onClick:function(){shareRecipe(r);},style:{padding:"6px 12px",background:OL,color:OD,border:"1px solid #FDBA74",borderRadius:8,fontSize:12,fontFamily:"inherit",cursor:"pointer"}},"📤 Share Recipe"),
+            r.id>4&&React.createElement("button",{onClick:function(){deleteRecipe(r.id);},style:{padding:"6px 12px",background:"#FEF2F2",color:RD,border:"1px solid #FECACA",borderRadius:8,fontSize:12,fontFamily:"inherit",cursor:"pointer"}},"🗑 Delete")
+          )
+        )
+      )
+    );})
+  )
+)
+```
+
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(React.createElement(App));
