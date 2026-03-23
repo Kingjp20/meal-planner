@@ -1,0 +1,22 @@
+{
+  "name": "WW Meal Planner",
+  "short_name": "Meal Planner",
+  "description": "Weekly WW meal planning with Fry's shopping list",
+  "start_url": "/meal-planner/",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#E8650A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
